@@ -1,0 +1,85 @@
+from flask import Flask, request, redirect, url_for
+from flask import render_template_string
+import mysql.connector
+
+app = Flask(__name__)
+
+# Kết nối MySQL
+db = mysql.connector.connect(
+    host="localhost",
+    user="root",
+    password="yourpassword",  # Thay bằng mật khẩu thật
+    database="profile_db"
+)
+cursor = db.cursor()
+
+# Template trang chủ
+index_template = """
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"><title>Trang chủ</title></head>
+<body>
+    <h1>Chào mừng đến với trang hồ sơ</h1>
+    <a href="{{ url_for('profile') }}">Tạo hồ sơ mới</a>
+</body>
+</html>
+"""
+
+# Template tạo hoặc hiển thị hồ sơ
+profile_template = """
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="UTF-8"><title>Hồ sơ</title></head>
+<body>
+{% if profile %}
+    <h1>{{ profile[1] }}</h1>
+    <img src="{{ profile[4] }}" alt="Avatar" width="100"><br>
+    <p>Email: {{ profile[2] }}</p>
+    <p>Giới thiệu: {{ profile[3] }}</p>
+{% else %}
+    <h1>Tạo hồ sơ mới</h1>
+    <form method="POST">
+        <label for="username">Tên người dùng:</label>
+        <input type="text" name="username" required><br>
+        <label for="email">Email:</label>
+        <input type="email" name="email" required><br>
+        <label for="bio">Giới thiệu:</label>
+        <textarea name="bio"></textarea><br>
+        <label for="avatar">Ảnh đại diện (URL):</label>
+        <input type="text" name="avatar" value="/static/images/default-avatar.jpg"><br>
+        <button type="submit">Lưu hồ sơ</button>
+    </form>
+{% endif %}
+</body>
+</html>
+"""
+
+@app.route('/')
+def index():
+    return render_template_string(index_template)
+
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if request.method == 'POST':
+        username = request.form['username']
+        email = request.form['email']
+        bio = request.form['bio']
+        avatar = request.form['avatar']
+
+        cursor.execute("""
+            INSERT INTO profiles (username, email, bio, avatar)
+            VALUES (%s, %s, %s, %s)
+        """, (username, email, bio, avatar))
+        db.commit()
+
+        return redirect(url_for('view_profile', username=username))
+    return render_template_string(profile_template)
+
+@app.route('/profile/<username>')
+def view_profile(username):
+    cursor.execute("SELECT * FROM profiles WHERE username = %s", (username,))
+    profile = cursor.fetchone()
+    return render_template_string(profile_template, profile=profile)
+
+if __name__ == '__main__':
+    app.run(debug=True)
